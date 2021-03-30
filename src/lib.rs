@@ -3,7 +3,7 @@ mod messages;
 
 pub use func::Functionality;
 use libc::{c_int, c_ulong, ioctl};
-use messages::{I2cMessage, I2cReadWriteData};
+use messages::{I2cMessageBuffer, I2cReadWriteData};
 use std::os::unix::io::AsRawFd;
 
 // supported ioctl commands
@@ -40,8 +40,10 @@ impl I2c {
     }
 
     pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> Result<(), I2cError> {
-        let messages = I2cMessage::read_reg(self.addr, register, buffer);
-        let data = I2cReadWriteData::from_messages(&messages[..]);
+        let mut messages = I2cMessageBuffer::new();
+        messages.add_read_reg(self.addr, 0, &register, buffer);
+        let data = I2cReadWriteData::from_messages(&messages);
+
         // SAFETY:
         // file descriptor guaranteed to point to valid open file
         // data guaranteed to outlast function call
@@ -52,8 +54,15 @@ impl I2c {
     }
 
     pub fn i2c_write(&self, register: u8, buffer: &[u8]) -> Result<(), I2cError> {
-        let messages = I2cMessage::write_reg(self.addr, register, buffer);
-        let data = I2cReadWriteData::from_messages(&messages[..]);
+        // need to create a new buffer as first byte of buffer passed must be the register
+        let mut new_buffer = Vec::with_capacity(buffer.len() + 1);
+        new_buffer.push(register);
+        new_buffer.extend_from_slice(buffer);
+
+        let mut messages = I2cMessageBuffer::new();
+        messages.add_write(self.addr, 0, buffer);
+        let data = I2cReadWriteData::from_messages(&messages);
+
         // SAFETY:
         // file descriptor guaranteed to point to valid open file
         // data guaranteed to outlast function call
