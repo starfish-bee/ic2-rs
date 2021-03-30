@@ -1,9 +1,10 @@
 mod func;
-
-use libc::{c_int, c_ulong, ioctl};
-use std::os::unix::io::AsRawFd;
+mod messages;
 
 pub use func::Functionality;
+use libc::{c_int, c_ulong, ioctl};
+use messages::{I2cMessage, I2cReadWriteData};
+use std::os::unix::io::AsRawFd;
 
 // supported ioctl commands
 const I2C_FUNCS: c_ulong = 0x0705;
@@ -36,6 +37,30 @@ impl I2c {
 
     pub fn functionality(&self) -> &Functionality {
         &self.func
+    }
+
+    pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> Result<(), I2cError> {
+        let messages = I2cMessage::read_reg(self.addr, register, buffer);
+        let data = I2cReadWriteData::from_messages(&messages[..]);
+        // SAFETY:
+        // file descriptor guaranteed to point to valid open file
+        // data guaranteed to outlast function call
+        // parameters correctly passed as described in i2c.h and i2c-dev.h
+        // hope ioctl implementation doesn't mess things up
+        get_err(unsafe { ioctl(self.file.as_raw_fd(), I2C_RDWR, &data) })?;
+        Ok(())
+    }
+
+    pub fn i2c_write(&self, register: u8, buffer: &[u8]) -> Result<(), I2cError> {
+        let messages = I2cMessage::write_reg(self.addr, register, buffer);
+        let data = I2cReadWriteData::from_messages(&messages[..]);
+        // SAFETY:
+        // file descriptor guaranteed to point to valid open file
+        // data guaranteed to outlast function call
+        // parameters correctly passed as described in i2c.h and i2c-dev.h
+        // hope ioctl implementation doesn't mess things up
+        get_err(unsafe { ioctl(self.file.as_raw_fd(), I2C_RDWR, &data) })?;
+        Ok(())
     }
 
     fn get_func(descriptor: c_int) -> Result<Functionality, I2cError> {
