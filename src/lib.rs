@@ -48,13 +48,7 @@ impl I2c {
         let mut messages = I2cMessageBuffer::new();
         messages.add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
-
-        // SAFETY:
-        // file descriptor guaranteed to point to valid open file
-        // data guaranteed to outlast function call
-        // parameters correctly passed as described in i2c.h and i2c-dev.h
-        // hope ioctl implementation doesn't mess things up
-        get_err(unsafe { ioctl(self.file.as_raw_fd(), I2C_RDWR, &data) })?;
+        i2c_rdwr_ioctl(&self, &data)?;
         Ok(buffer)
     }
 
@@ -67,14 +61,7 @@ impl I2c {
         let mut messages = I2cMessageBuffer::new();
         messages.add_write(self.addr, 0, buffer);
         let data = I2cReadWriteData::from_messages(&messages);
-
-        // SAFETY:
-        // file descriptor guaranteed to point to valid open file
-        // data guaranteed to outlast function call
-        // parameters correctly passed as described in i2c.h and i2c-dev.h
-        // hope ioctl implementation doesn't mess things up
-        get_err(unsafe { ioctl(self.file.as_raw_fd(), I2C_RDWR, &data) })?;
-        Ok(())
+        i2c_rdwr_ioctl(&self, &data)
     }
 
     pub fn i2c_buffer(&self) -> I2cBuffer {
@@ -108,15 +95,7 @@ impl<'a> I2cBuffer<'a> {
 
     pub fn execute(self) -> Result<(), I2cError> {
         let data = I2cReadWriteData::from_messages(&self.buffer);
-
-        // SAFETY:
-        // file descriptor guaranteed to point to valid open file
-        // data guaranteed to outlast function call
-        // parameters correctly passed as described in i2c.h and i2c-dev.h
-        // hope ioctl implementation doesn't mess things up
-        get_err(unsafe { ioctl(self.handle.file.as_raw_fd(), I2C_RDWR, &data) })?;
-
-        Ok(())
+        i2c_rdwr_ioctl(&self.handle, &data)
     }
 }
 
@@ -124,6 +103,7 @@ impl<'a> I2cBuffer<'a> {
 pub enum I2cError {
     IoctlError(std::io::Error),
     AddressError,
+    MissingFunctionalityError(String),
 }
 
 impl std::convert::From<std::io::Error> for I2cError {
@@ -132,7 +112,23 @@ impl std::convert::From<std::io::Error> for I2cError {
     }
 }
 
-// wraps ioctl calls to map it's return into a Result
+fn i2c_rdwr_ioctl(handle: &I2c, data: &I2cReadWriteData) -> Result<(), I2cError> {
+    if !handle.functionality().i2c() {
+        return Err(I2cError::MissingFunctionalityError(
+            "I2C_FUNC_I2C".to_string(),
+        ));
+    }
+
+    // SAFETY:
+    // file descriptor guaranteed to point to valid open file
+    // data guaranteed to outlast function call
+    // parameters correctly passed as described in i2c.h and i2c-dev.h
+    // hope ioctl implementation doesn't mess things up
+    get_err(unsafe { ioctl(handle.file.as_raw_fd(), I2C_RDWR, data) })?;
+    Ok(())
+}
+
+// wraps ioctl calls to map its return into a Result
 fn get_err(code: c_int) -> Result<c_int, std::io::Error> {
     match code {
         x if x >= 0 => Ok(x),
@@ -140,6 +136,8 @@ fn get_err(code: c_int) -> Result<c_int, std::io::Error> {
     }
 }
 
+// this test requires that a BME680 chip is connected to the I2C bus
+// checks the BME680 chip ID register is 0x61
 #[test]
 fn get_temp() {
     let handle = I2c::open(0x76).unwrap();
