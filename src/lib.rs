@@ -72,11 +72,46 @@ impl I2c {
         Ok(())
     }
 
+    pub fn i2c_buffer(&self) -> I2cBuffer {
+        I2cBuffer {
+            buffer: I2cMessageBuffer::new(),
+            handle: self,
+        }
+    }
+
     fn get_func(descriptor: c_int) -> Result<Functionality, I2cError> {
         let mut func = 0;
         get_err(unsafe { ioctl(descriptor, I2C_FUNCS, &mut func) })?;
 
         Ok(Functionality(func))
+    }
+}
+
+pub struct I2cBuffer<'a> {
+    buffer: I2cMessageBuffer<'a>,
+    handle: &'a I2c,
+}
+
+impl<'a> I2cBuffer<'a> {
+    pub fn add_read(&mut self, flags: u16, buffer: &'a mut [u8]) {
+        self.buffer.add_read(self.handle.addr, flags, buffer)
+    }
+
+    pub fn add_write(&mut self, flags: u16, buffer: &'a [u8]) {
+        self.buffer.add_write(self.handle.addr, flags, buffer)
+    }
+
+    pub fn execute(self) -> Result<(), I2cError> {
+        let data = I2cReadWriteData::from_messages(&self.buffer);
+
+        // SAFETY:
+        // file descriptor guaranteed to point to valid open file
+        // data guaranteed to outlast function call
+        // parameters correctly passed as described in i2c.h and i2c-dev.h
+        // hope ioctl implementation doesn't mess things up
+        get_err(unsafe { ioctl(self.handle.file.as_raw_fd(), I2C_RDWR, &data) })?;
+
+        Ok(())
     }
 }
 
