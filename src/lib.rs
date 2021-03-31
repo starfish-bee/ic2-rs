@@ -4,6 +4,10 @@ mod messages;
 pub use func::Functionality;
 use libc::{c_int, c_ulong, ioctl};
 use messages::{I2cMessageBuffer, I2cReadWriteData};
+pub use messages::{
+    I2C_M_IGNORE_NACK, I2C_M_NOSTART, I2C_M_NO_RD_ACK, I2C_M_RD, I2C_M_RECV_LEN,
+    I2C_M_REV_DIR_ADDR, I2C_M_TEN,
+};
 use std::os::unix::io::AsRawFd;
 
 // supported ioctl commands
@@ -39,9 +43,10 @@ impl I2c {
         &self.func
     }
 
-    pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> Result<(), I2cError> {
+    pub fn i2c_read(&self, register: u8, bytes: usize) -> Result<Vec<u8>, I2cError> {
+        let mut buffer = vec![0; bytes];
         let mut messages = I2cMessageBuffer::new();
-        messages.add_read_reg(self.addr, 0, &register, buffer);
+        messages.add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
 
         // SAFETY:
@@ -50,7 +55,7 @@ impl I2c {
         // parameters correctly passed as described in i2c.h and i2c-dev.h
         // hope ioctl implementation doesn't mess things up
         get_err(unsafe { ioctl(self.file.as_raw_fd(), I2C_RDWR, &data) })?;
-        Ok(())
+        Ok(buffer)
     }
 
     pub fn i2c_write(&self, register: u8, buffer: &[u8]) -> Result<(), I2cError> {
@@ -133,4 +138,12 @@ fn get_err(code: c_int) -> Result<c_int, std::io::Error> {
         x if x >= 0 => Ok(x),
         _ => Err(std::io::Error::last_os_error()),
     }
+}
+
+#[test]
+fn get_temp() {
+    let handle = I2c::open(0x76).unwrap();
+    let temp = handle.i2c_read(0xD0, 1);
+    println!("{:x?}", temp);
+    assert_eq!(temp.unwrap(), vec![0x61]);
 }

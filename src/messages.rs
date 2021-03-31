@@ -1,13 +1,13 @@
 use std::convert::TryFrom;
 
 // I2C message flags
-const I2C_M_RD: u16 = 0x0001;
-const I2C_M_TEN: u16 = 0x0010;
-const I2C_M_RECV_LEN: u16 = 0x0400;
-const I2C_M_NO_RD_ACK: u16 = 0x0800;
-const I2C_M_IGNORE_NACK: u16 = 0x1000;
-const I2C_M_REV_DIR_ADDR: u16 = 0x2000;
-const I2C_M_NOSTART: u16 = 0x4000;
+pub const I2C_M_RD: u16 = 0x0001;
+pub const I2C_M_TEN: u16 = 0x0010;
+pub const I2C_M_RECV_LEN: u16 = 0x0400;
+pub const I2C_M_NO_RD_ACK: u16 = 0x0800;
+pub const I2C_M_IGNORE_NACK: u16 = 0x1000;
+pub const I2C_M_REV_DIR_ADDR: u16 = 0x2000;
+pub const I2C_M_NOSTART: u16 = 0x4000;
 
 // i2c_rdwr_ioctl_data struct, as defined in i2c-dev.h
 #[repr(C)]
