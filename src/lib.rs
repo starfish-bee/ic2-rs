@@ -14,6 +14,7 @@ use std::os::unix::io::AsRawFd;
 const I2C_FUNCS: c_ulong = 0x0705;
 const I2C_RDWR: c_ulong = 0x0707;
 
+#[derive(Debug)]
 pub struct I2c {
     file: std::fs::File,
     addr: u16,
