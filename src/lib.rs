@@ -80,6 +80,7 @@ impl I2c {
     }
 }
 
+#[derive(Debug)]
 pub struct I2cBuffer<'a> {
     buffer: I2cMessageBuffer<'a>,
     handle: &'a I2c,
@@ -137,12 +138,28 @@ fn get_err(code: c_int) -> Result<c_int, std::io::Error> {
     }
 }
 
-// this test requires that a BME680 chip is connected to the I2C bus
+// these tests require that a BME680 chip is connected to the I2C bus
 // checks the BME680 chip ID register is 0x61
 #[test]
-fn get_temp() {
+fn test_i2c_read() {
     let handle = I2c::open(0x76).unwrap();
-    let temp = handle.i2c_read(0xD0, 1);
-    println!("{:x?}", temp);
-    assert_eq!(temp.unwrap(), vec![0x61]);
+    let id = handle.i2c_read(0xD0, 1);
+    println!("{:x?}", id);
+    assert_eq!(id.unwrap(), vec![0x61]);
+}
+
+// checks the BME680 chip ID register is 0x61
+#[test]
+fn test_buffer_read() {
+    let handle = I2c::open(0x76).unwrap();
+    let register = vec![0xD0];
+    let mut id = vec![0];
+
+    let mut buffer = handle.i2c_buffer();
+    buffer.add_write(0, &register[..]);
+    buffer.add_read(0, &mut id);
+    buffer.execute().unwrap();
+
+    println!("{:x?}", id);
+    assert_eq!(id, vec![0x61]);
 }
