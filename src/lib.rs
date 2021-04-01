@@ -8,6 +8,7 @@ pub use messages::{
     I2C_M_IGNORE_NACK, I2C_M_NOSTART, I2C_M_NO_RD_ACK, I2C_M_RD, I2C_M_RECV_LEN,
     I2C_M_REV_DIR_ADDR, I2C_M_TEN,
 };
+use std::convert::TryFrom;
 use std::os::unix::io::AsRawFd;
 
 // supported ioctl commands
@@ -95,6 +96,12 @@ impl<'a> I2cBuffer<'a> {
         self.buffer.add_write(self.handle.addr, flags, buffer)
     }
 
+    pub fn add_raw(&mut self, flags: u16, buffer: &'a mut [u8]) {
+        let len = u16::try_from(buffer.len()).unwrap();
+        let buffer = buffer.as_mut_ptr();
+        self.buffer.add_raw(self.handle.addr, flags, len, buffer)
+    }
+
     pub fn execute(self) -> Result<(), I2cError> {
         let data = I2cReadWriteData::from_messages(&self.buffer);
         i2c_rdwr_ioctl(&self.handle, &data)
@@ -152,12 +159,12 @@ fn test_i2c_read() {
 #[test]
 fn test_buffer_read() {
     let handle = I2c::open(0x76).unwrap();
-    let register = vec![0xD0];
-    let mut id = vec![0];
+    let mut data = vec![0xD0, 0];
+    let (register, id) = data.split_at_mut(1);
 
     let mut buffer = handle.i2c_buffer();
-    buffer.add_write(0, &register[..]);
-    buffer.add_read(0, &mut id);
+    buffer.add_write(0, register);
+    buffer.add_read(0, id);
     buffer.execute().unwrap();
 
     println!("{:x?}", id);

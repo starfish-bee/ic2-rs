@@ -64,14 +64,12 @@ impl<'a> I2cMessageBuffer<'a> {
     }
 
     pub fn add_read_reg(&mut self, addr: u16, flags: u16, register: &'a u8, buffer: &'a mut [u8]) {
-        let flags = flags & !I2C_M_RD;
-        let len = 1;
-        let register = register as *const u8 as *mut u8;
-        self.add_raw(addr, flags, len, register);
+        let register = std::slice::from_ref(register);
+        self.add_write(addr, flags, register);
         self.add_read(addr, flags, buffer)
     }
 
-    fn add_raw(&mut self, addr: u16, flags: u16, len: u16, buffer: *mut u8) {
+    pub fn add_raw(&mut self, addr: u16, flags: u16, len: u16, buffer: *mut u8) {
         self.buffer.push(I2cMessage {
             addr,
             flags,
