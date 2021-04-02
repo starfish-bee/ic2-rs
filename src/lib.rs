@@ -79,6 +79,14 @@ impl I2c {
 
         Ok(Functionality(func))
     }
+
+    fn require_func(&self, func: c_ulong) -> Result<(), Functionality> {
+        let mask = !self.functionality().0 & func;
+        match mask {
+            0 => Ok(()),
+            mask => Err(Functionality(mask)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -112,7 +120,7 @@ impl<'a> I2cBuffer<'a> {
 pub enum I2cError {
     IoctlError(std::io::Error),
     AddressError,
-    MissingFunctionalityError(String),
+    MissingFunctionalityError(Functionality),
 }
 
 impl std::convert::From<std::io::Error> for I2cError {
@@ -121,12 +129,14 @@ impl std::convert::From<std::io::Error> for I2cError {
     }
 }
 
-fn i2c_rdwr_ioctl(handle: &I2c, data: &I2cReadWriteData) -> Result<(), I2cError> {
-    if !handle.functionality().i2c() {
-        return Err(I2cError::MissingFunctionalityError(
-            "I2C_FUNC_I2C".to_string(),
-        ));
+impl std::convert::From<Functionality> for I2cError {
+    fn from(arg: Functionality) -> Self {
+        Self::MissingFunctionalityError(arg)
     }
+}
+
+fn i2c_rdwr_ioctl(handle: &I2c, data: &I2cReadWriteData) -> Result<(), I2cError> {
+    handle.require_func(func::I2C_FUNC_I2C)?;
 
     // SAFETY:
     // file descriptor guaranteed to point to valid open file
@@ -143,6 +153,16 @@ fn get_err(code: c_int) -> Result<c_int, std::io::Error> {
         x if x >= 0 => Ok(x),
         _ => Err(std::io::Error::last_os_error()),
     }
+}
+
+#[test]
+fn test_require_funcs() {
+    let mut handle = I2c::open(0x76).unwrap();
+    handle.func = Functionality::new(0b10110);
+    let result = handle.require_func(0b00100);
+    assert_eq!(result, Ok(()));
+    let result = handle.require_func(0b11001);
+    assert_eq!(result, Err(Functionality::new(0b01001)));
 }
 
 // these tests require that a BME680 chip is connected to the I2C bus

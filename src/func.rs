@@ -1,23 +1,23 @@
 use libc::c_ulong;
 
 // functionality parameters
-const I2C_FUNC_I2C: c_ulong = 0x00000001;
-const I2C_FUNC_10BIT_ADDR: c_ulong = 0x00000002;
-const I2C_FUNC_PROTOCOL_MANGLING: c_ulong = 0x00000004;
-const I2C_FUNC_SMBUS_PEC: c_ulong = 0x00000008;
-const I2C_FUNC_SMBUS_BLOCK_PROC_CALL: c_ulong = 0x00008000;
-const I2C_FUNC_SMBUS_QUICK: c_ulong = 0x00010000;
-const I2C_FUNC_SMBUS_READ_BYTE: c_ulong = 0x00020000;
-const I2C_FUNC_SMBUS_WRITE_BYTE: c_ulong = 0x00040000;
-const I2C_FUNC_SMBUS_READ_BYTE_DATA: c_ulong = 0x00080000;
-const I2C_FUNC_SMBUS_WRITE_BYTE_DATA: c_ulong = 0x00100000;
-const I2C_FUNC_SMBUS_READ_WORD_DATA: c_ulong = 0x00200000;
-const I2C_FUNC_SMBUS_WRITE_WORD_DATA: c_ulong = 0x00400000;
-const I2C_FUNC_SMBUS_PROC_CALL: c_ulong = 0x00800000;
-const I2C_FUNC_SMBUS_READ_BLOCK_DATA: c_ulong = 0x01000000;
-const I2C_FUNC_SMBUS_WRITE_BLOCK_DATA: c_ulong = 0x02000000;
-const I2C_FUNC_SMBUS_READ_BLOCK: c_ulong = 0x04000000;
-const I2C_FUNC_SMBUS_WRITE_BLOCK: c_ulong = 0x08000000;
+pub const I2C_FUNC_I2C: c_ulong = 0x00000001;
+pub const I2C_FUNC_10BIT_ADDR: c_ulong = 0x00000002;
+pub const I2C_FUNC_PROTOCOL_MANGLING: c_ulong = 0x00000004;
+pub const I2C_FUNC_SMBUS_PEC: c_ulong = 0x00000008;
+pub const I2C_FUNC_SMBUS_BLOCK_PROC_CALL: c_ulong = 0x00008000;
+pub const I2C_FUNC_SMBUS_QUICK: c_ulong = 0x00010000;
+pub const I2C_FUNC_SMBUS_READ_BYTE: c_ulong = 0x00020000;
+pub const I2C_FUNC_SMBUS_WRITE_BYTE: c_ulong = 0x00040000;
+pub const I2C_FUNC_SMBUS_READ_BYTE_DATA: c_ulong = 0x00080000;
+pub const I2C_FUNC_SMBUS_WRITE_BYTE_DATA: c_ulong = 0x00100000;
+pub const I2C_FUNC_SMBUS_READ_WORD_DATA: c_ulong = 0x00200000;
+pub const I2C_FUNC_SMBUS_WRITE_WORD_DATA: c_ulong = 0x00400000;
+pub const I2C_FUNC_SMBUS_PROC_CALL: c_ulong = 0x00800000;
+pub const I2C_FUNC_SMBUS_READ_BLOCK_DATA: c_ulong = 0x01000000;
+pub const I2C_FUNC_SMBUS_WRITE_BLOCK_DATA: c_ulong = 0x02000000;
+pub const I2C_FUNC_SMBUS_READ_BLOCK: c_ulong = 0x04000000;
+pub const I2C_FUNC_SMBUS_WRITE_BLOCK: c_ulong = 0x08000000;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Functionality(pub c_ulong);
