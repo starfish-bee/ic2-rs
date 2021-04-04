@@ -61,7 +61,7 @@ impl I2c {
         new_buffer.extend_from_slice(buffer);
 
         let mut messages = I2cMessageBuffer::new();
-        messages.add_write(self.addr, 0, buffer);
+        messages.add_write(self.addr, 0, &new_buffer);
         let data = I2cReadWriteData::from_messages(&messages);
         i2c_rdwr_ioctl(&self, &data)
     }
@@ -189,4 +189,31 @@ fn test_buffer_read() {
 
     println!("{:x?}", id);
     assert_eq!(id, vec![0x61]);
+}
+
+#[test]
+fn test_i2c_write() {
+    let handle = I2c::open(0x76).unwrap();
+    let data = [1];
+    let address = 0x72;
+    handle.i2c_write(address, &data).unwrap();
+    let new_value = handle.i2c_read(address, 1);
+
+    println!("{:x?}", new_value);
+    assert_eq!(new_value.unwrap(), [1]);
+}
+
+#[test]
+fn test_buffer_write() {
+    let handle = I2c::open(0x76).unwrap();
+    let address = 0x72;
+    let data = [address, 2];
+
+    let mut buffer = handle.i2c_buffer();
+    buffer.add_write(0, &data);
+    buffer.execute().unwrap();
+    let new_value = handle.i2c_read(address, 1);
+
+    println!("{:x?}", new_value);
+    assert_eq!(new_value.unwrap(), [2]);
 }
