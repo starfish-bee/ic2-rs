@@ -48,14 +48,14 @@ impl<'a> I2cMessageBuffer<'a> {
         }
     }
 
-    pub fn add_read(&mut self, addr: u16, flags: u16, buffer: &'a mut [u8]) {
+    pub fn add_read(self, addr: u16, flags: u16, buffer: &'a mut [u8]) -> Self {
         let flags = flags | I2C_M_RD;
         let len = u16::try_from(buffer.len()).unwrap();
         let buffer = buffer.as_mut_ptr();
         self.add_raw(addr, flags, len, buffer)
     }
 
-    pub fn add_write(&mut self, addr: u16, flags: u16, buffer: &'a [u8]) {
+    pub fn add_write(self, addr: u16, flags: u16, buffer: &'a [u8]) -> Self {
         let flags = flags & !I2C_M_RD;
         let len = u16::try_from(buffer.len()).unwrap();
         // function guarantees I2C read flag never set, so buffer will never be written to
@@ -63,19 +63,26 @@ impl<'a> I2cMessageBuffer<'a> {
         self.add_raw(addr, flags, len, buffer)
     }
 
-    pub fn add_read_reg(&mut self, addr: u16, flags: u16, register: &'a u8, buffer: &'a mut [u8]) {
+    pub fn add_read_reg(
+        self,
+        addr: u16,
+        flags: u16,
+        register: &'a u8,
+        buffer: &'a mut [u8],
+    ) -> Self {
         let register = std::slice::from_ref(register);
-        self.add_write(addr, flags, register);
-        self.add_read(addr, flags, buffer)
+        self.add_write(addr, flags, register)
+            .add_read(addr, flags, buffer)
     }
 
-    pub fn add_raw(&mut self, addr: u16, flags: u16, len: u16, buffer: *mut u8) {
+    pub fn add_raw(mut self, addr: u16, flags: u16, len: u16, buffer: *mut u8) -> Self {
         self.buffer.push(I2cMessage {
             addr,
             flags,
             len,
             buffer,
-        })
+        });
+        self
     }
 }
 

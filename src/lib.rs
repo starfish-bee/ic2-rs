@@ -47,8 +47,8 @@ impl I2c {
 
     pub fn i2c_read(&self, register: u8, bytes: usize) -> Result<Vec<u8>, I2cError> {
         let mut buffer = vec![0; bytes];
-        let mut messages = I2cMessageBuffer::new();
-        messages.add_read_reg(self.addr, 0, &register, &mut buffer[..]);
+        let messages =
+            I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
         i2c_rdwr_ioctl(&self, &data)?;
         Ok(buffer)
@@ -60,8 +60,7 @@ impl I2c {
         new_buffer.push(register);
         new_buffer.extend_from_slice(buffer);
 
-        let mut messages = I2cMessageBuffer::new();
-        messages.add_write(self.addr, 0, &new_buffer);
+        let messages = I2cMessageBuffer::new().add_write(self.addr, 0, &new_buffer);
         let data = I2cReadWriteData::from_messages(&messages);
         i2c_rdwr_ioctl(&self, &data)
     }
@@ -96,21 +95,33 @@ pub struct I2cBuffer<'a> {
 }
 
 impl<'a> I2cBuffer<'a> {
-    pub fn add_read(&mut self, flags: u16, buffer: &'a mut [u8]) {
-        self.buffer.add_read(self.handle.addr, flags, buffer)
+    pub fn add_read(self, flags: u16, buffer: &'a mut [u8]) -> Self {
+        let buffer = self.buffer.add_read(self.handle.addr, flags, buffer);
+        Self {
+            buffer,
+            handle: self.handle,
+        }
     }
 
-    pub fn add_write(&mut self, flags: u16, buffer: &'a [u8]) {
-        self.buffer.add_write(self.handle.addr, flags, buffer)
+    pub fn add_write(self, flags: u16, buffer: &'a [u8]) -> Self {
+        let buffer = self.buffer.add_write(self.handle.addr, flags, buffer);
+        Self {
+            buffer,
+            handle: self.handle,
+        }
     }
 
-    pub fn add_raw(&mut self, flags: u16, buffer: &'a mut [u8]) {
+    pub fn add_raw(self, flags: u16, buffer: &'a mut [u8]) -> Self {
         let len = u16::try_from(buffer.len()).unwrap();
         let buffer = buffer.as_mut_ptr();
-        self.buffer.add_raw(self.handle.addr, flags, len, buffer)
+        let buffer = self.buffer.add_raw(self.handle.addr, flags, len, buffer);
+        Self {
+            buffer,
+            handle: self.handle,
+        }
     }
 
-    pub fn execute(self) -> Result<(), I2cError> {
+    pub fn execute(&self) -> Result<(), I2cError> {
         let data = I2cReadWriteData::from_messages(&self.buffer);
         i2c_rdwr_ioctl(&self.handle, &data)
     }
@@ -182,10 +193,12 @@ fn test_buffer_read() {
     let mut data = vec![0xD0, 0];
     let (register, id) = data.split_at_mut(1);
 
-    let mut buffer = handle.i2c_buffer();
-    buffer.add_write(0, register);
-    buffer.add_read(0, id);
-    buffer.execute().unwrap();
+    handle
+        .i2c_buffer()
+        .add_write(0, register)
+        .add_read(0, id)
+        .execute()
+        .unwrap();
 
     println!("{:x?}", id);
     assert_eq!(id, vec![0x61]);
@@ -209,9 +222,7 @@ fn test_buffer_write() {
     let address = 0x72;
     let data = [address, 2];
 
-    let mut buffer = handle.i2c_buffer();
-    buffer.add_write(0, &data);
-    buffer.execute().unwrap();
+    handle.i2c_buffer().add_write(0, &data).execute().unwrap();
     let new_value = handle.i2c_read(address, 1);
 
     println!("{:x?}", new_value);
