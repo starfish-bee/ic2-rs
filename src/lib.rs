@@ -45,13 +45,21 @@ impl I2c {
         &self.func
     }
 
-    pub fn i2c_read(&self, register: u8, bytes: usize) -> Result<Vec<u8>, I2cError> {
+    pub fn i2c_read_bytes(&self, register: u8, bytes: usize) -> Result<Vec<u8>, I2cError> {
         let mut buffer = vec![0; bytes];
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
         i2c_rdwr_ioctl(&self, &data)?;
         Ok(buffer)
+    }
+
+    pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> Result<(), I2cError> {
+        let messages =
+            I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
+        let data = I2cReadWriteData::from_messages(&messages);
+        i2c_rdwr_ioctl(&self, &data)?;
+        Ok(())
     }
 
     pub fn i2c_write(&self, register: u8, buffer: &[u8]) -> Result<(), I2cError> {
@@ -181,9 +189,11 @@ fn test_require_funcs() {
 #[test]
 fn test_i2c_read() {
     let handle = I2c::open(0x76).unwrap();
-    let id = handle.i2c_read(0xD0, 1);
-    println!("{:x?}", id);
+    let id = handle.i2c_read_bytes(0xD0, 1);
+    let mut buffer = [0];
+    handle.i2c_read(0xD0, &mut buffer).unwrap();
     assert_eq!(id.unwrap(), vec![0x61]);
+    assert_eq!(buffer, [0x61]);
 }
 
 // checks the BME680 chip ID register is 0x61
@@ -200,7 +210,6 @@ fn test_buffer_read() {
         .execute()
         .unwrap();
 
-    println!("{:x?}", id);
     assert_eq!(id, vec![0x61]);
 }
 
@@ -210,9 +219,8 @@ fn test_i2c_write() {
     let data = [1];
     let address = 0x72;
     handle.i2c_write(address, &data).unwrap();
-    let new_value = handle.i2c_read(address, 1);
+    let new_value = handle.i2c_read_bytes(address, 1);
 
-    println!("{:x?}", new_value);
     assert_eq!(new_value.unwrap(), [1]);
 }
 
@@ -223,8 +231,7 @@ fn test_buffer_write() {
     let data = [address, 2];
 
     handle.i2c_buffer().add_write(0, &data).execute().unwrap();
-    let new_value = handle.i2c_read(address, 1);
+    let new_value = handle.i2c_read_bytes(address, 1);
 
-    println!("{:x?}", new_value);
     assert_eq!(new_value.unwrap(), [2]);
 }
