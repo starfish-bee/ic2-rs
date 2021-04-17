@@ -16,6 +16,8 @@ use thiserror::Error;
 const I2C_FUNCS: c_ulong = 0x0705;
 const I2C_RDWR: c_ulong = 0x0707;
 
+pub type I2cResult<T> = Result<T, I2cError>;
+
 #[derive(Debug)]
 pub struct I2c {
     file: std::fs::File,
@@ -24,7 +26,7 @@ pub struct I2c {
 }
 
 impl I2c {
-    pub fn open(addr: u16) -> Result<Self, I2cError> {
+    pub fn open(addr: u16) -> I2cResult<Self> {
         let path = "/dev/i2c-1";
         let file = std::fs::OpenOptions::new()
             .read(true)
@@ -47,7 +49,7 @@ impl I2c {
         &self.func
     }
 
-    pub fn i2c_read_bytes(&self, register: u8, bytes: usize) -> Result<Vec<u8>, I2cError> {
+    pub fn i2c_read_bytes(&self, register: u8, bytes: usize) -> I2cResult<Vec<u8>> {
         let mut buffer = vec![0; bytes];
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
@@ -56,7 +58,7 @@ impl I2c {
         Ok(buffer)
     }
 
-    pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> Result<(), I2cError> {
+    pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> I2cResult<()> {
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
@@ -64,7 +66,7 @@ impl I2c {
         Ok(())
     }
 
-    pub fn i2c_write(&self, register: u8, buffer: &[u8]) -> Result<(), I2cError> {
+    pub fn i2c_write(&self, register: u8, buffer: &[u8]) -> I2cResult<()> {
         // need to create a new buffer as first byte of buffer passed must be the register
         let mut new_buffer = Vec::with_capacity(buffer.len() + 1);
         new_buffer.push(register);
@@ -131,7 +133,7 @@ impl<'a> I2cBuffer<'a> {
         }
     }
 
-    pub fn execute(&self) -> Result<(), I2cError> {
+    pub fn execute(&self) -> I2cResult<()> {
         let data = I2cReadWriteData::from_messages(&self.buffer);
         i2c_rdwr_ioctl(&self.handle, &data).map_err(|e| I2cError::BufferError(e))
     }
