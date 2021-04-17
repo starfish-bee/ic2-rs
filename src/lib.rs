@@ -10,6 +10,7 @@ pub use messages::{
 };
 use std::convert::TryFrom;
 use std::os::unix::io::AsRawFd;
+use thiserror::Error;
 
 // supported ioctl commands
 const I2C_FUNCS: c_ulong = 0x0705;
@@ -28,7 +29,8 @@ impl I2c {
         let file = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
-            .open(path)?;
+            .open(path)
+            .map_err(|e| I2cError::FileError(e))?;
 
         let func = Self::get_func(file.as_raw_fd())?;
         // address is too long for supported address range
@@ -50,7 +52,7 @@ impl I2c {
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
-        i2c_rdwr_ioctl(&self, &data)?;
+        i2c_rdwr_ioctl(&self, &data).map_err(|e| I2cError::ReadError(e))?;
         Ok(buffer)
     }
 
@@ -58,7 +60,7 @@ impl I2c {
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
-        i2c_rdwr_ioctl(&self, &data)?;
+        i2c_rdwr_ioctl(&self, &data).map_err(|e| I2cError::ReadError(e))?;
         Ok(())
     }
 
@@ -70,7 +72,7 @@ impl I2c {
 
         let messages = I2cMessageBuffer::new().add_write(self.addr, 0, &new_buffer);
         let data = I2cReadWriteData::from_messages(&messages);
-        i2c_rdwr_ioctl(&self, &data)
+        i2c_rdwr_ioctl(&self, &data).map_err(|e| I2cError::WriteError(e))
     }
 
     pub fn i2c_buffer(&self) -> I2cBuffer {
@@ -80,7 +82,7 @@ impl I2c {
         }
     }
 
-    fn get_func(descriptor: c_int) -> Result<Functionality, I2cError> {
+    fn get_func(descriptor: c_int) -> Result<Functionality, IoctlError> {
         let mut func = 0;
         get_err(unsafe { ioctl(descriptor, I2C_FUNCS, &mut func) })?;
 
@@ -131,30 +133,41 @@ impl<'a> I2cBuffer<'a> {
 
     pub fn execute(&self) -> Result<(), I2cError> {
         let data = I2cReadWriteData::from_messages(&self.buffer);
-        i2c_rdwr_ioctl(&self.handle, &data)
+        i2c_rdwr_ioctl(&self.handle, &data).map_err(|e| I2cError::BufferError(e))
     }
 }
 
-#[derive(Debug)]
-pub enum I2cError {
-    IoctlError(std::io::Error),
-    AddressError,
-    MissingFunctionalityError(Functionality),
+#[derive(Debug, Error)]
+pub enum IoctlError {
+    #[error("missing functionality required for ioctl call")]
+    FunctionalityError(Functionality),
+    #[error(transparent)]
+    IoctlError(#[from] std::io::Error),
 }
 
-impl std::convert::From<std::io::Error> for I2cError {
-    fn from(arg: std::io::Error) -> Self {
-        Self::IoctlError(arg)
-    }
-}
-
-impl std::convert::From<Functionality> for I2cError {
+impl std::convert::From<Functionality> for IoctlError {
     fn from(arg: Functionality) -> Self {
-        Self::MissingFunctionalityError(arg)
+        Self::FunctionalityError(arg)
     }
 }
 
-fn i2c_rdwr_ioctl(handle: &I2c, data: &I2cReadWriteData) -> Result<(), I2cError> {
+#[derive(Debug, Error)]
+pub enum I2cError {
+    #[error("failed to open i2c device")]
+    FileError(#[source] std::io::Error),
+    #[error("failed on i2c read request")]
+    ReadError(#[source] IoctlError),
+    #[error("failed on i2c write request")]
+    WriteError(#[source] IoctlError),
+    #[error("failed on i2c buffer execute")]
+    BufferError(#[source] IoctlError),
+    #[error(transparent)]
+    IoctlError(#[from] IoctlError),
+    #[error("address too long for supported address range")]
+    AddressError,
+}
+
+fn i2c_rdwr_ioctl(handle: &I2c, data: &I2cReadWriteData) -> Result<(), IoctlError> {
     handle.require_func(func::I2C_FUNC_I2C)?;
 
     // SAFETY:
@@ -234,4 +247,47 @@ fn test_buffer_write() {
     let new_value = handle.i2c_read_bytes(address, 1);
 
     assert_eq!(new_value.unwrap(), [2]);
+}
+
+#[test]
+fn test_bad_functionality() {
+    use std::error::Error;
+
+    let mut handle = I2c::open(0x76).unwrap();
+    handle.func = Functionality::new(0);
+    let data = [1];
+    let address = 0x72;
+    let result = handle.i2c_write(address, &data).unwrap_err();
+
+    assert_eq!(format!("{}", result), "failed on i2c write request");
+    assert_eq!(
+        format!("{}", result.source().unwrap()),
+        "missing functionality required for ioctl call"
+    );
+}
+
+#[test]
+fn test_bad_addr() {
+    use std::error::Error;
+
+    let handle = I2c::open(0x00).unwrap();
+    let address = 0x72;
+    let data = [address, 2];
+    let result = handle
+        .i2c_buffer()
+        .add_write(0, &data)
+        .execute()
+        .unwrap_err();
+
+    assert_eq!(format!("{}", result), "failed on i2c buffer execute");
+    assert_eq!(
+        format!("{}", result.source().unwrap()),
+        "Remote I/O error (os error 121)"
+    );
+
+    let handle = I2c::open(0xFFFF).unwrap_err();
+    assert_eq!(
+        format!("{}", handle),
+        "address too long for supported address range"
+    );
 }
