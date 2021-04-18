@@ -32,7 +32,7 @@ impl I2c {
             .read(true)
             .write(true)
             .open(path)
-            .map_err(|e| I2cError::FileError(e))?;
+            .map_err(I2cError::FileError)?;
 
         let func = Self::get_func(file.as_raw_fd())?;
         // address is too long for supported address range
@@ -54,7 +54,7 @@ impl I2c {
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
-        i2c_rdwr_ioctl(&self, &data).map_err(|e| I2cError::ReadError(e))?;
+        i2c_rdwr_ioctl(&self, &data).map_err(I2cError::ReadError)?;
         Ok(buffer)
     }
 
@@ -62,7 +62,7 @@ impl I2c {
         let messages =
             I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
         let data = I2cReadWriteData::from_messages(&messages);
-        i2c_rdwr_ioctl(&self, &data).map_err(|e| I2cError::ReadError(e))?;
+        i2c_rdwr_ioctl(&self, &data).map_err(I2cError::ReadError)?;
         Ok(())
     }
 
@@ -74,7 +74,7 @@ impl I2c {
 
         let messages = I2cMessageBuffer::new().add_write(self.addr, 0, &new_buffer);
         let data = I2cReadWriteData::from_messages(&messages);
-        i2c_rdwr_ioctl(&self, &data).map_err(|e| I2cError::WriteError(e))
+        i2c_rdwr_ioctl(&self, &data).map_err(I2cError::WriteError)
     }
 
     pub fn i2c_buffer(&self) -> I2cBuffer {
@@ -135,7 +135,7 @@ impl<'a> I2cBuffer<'a> {
 
     pub fn execute(&self) -> I2cResult<()> {
         let data = I2cReadWriteData::from_messages(&self.buffer);
-        i2c_rdwr_ioctl(&self.handle, &data).map_err(|e| I2cError::BufferError(e))
+        i2c_rdwr_ioctl(&self.handle, &data).map_err(I2cError::BufferError)
     }
 }
 
