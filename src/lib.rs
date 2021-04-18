@@ -39,10 +39,19 @@ impl I2c {
         if (!func._10_bit_addr() & (addr > 0b0111_1111))
             | (func._10_bit_addr() & (addr > 0b0011_1111_1111))
         {
-            return Err(I2cError::AddressError);
+            return Err(I2cError::AddressRangeError);
         };
 
-        Ok(Self { file, addr, func })
+        let handle = Self { file, addr, func };
+
+        // send single byte read request to test address
+        let mut buffer: u8 = 0;
+        let messages =
+            I2cMessageBuffer::new().add_raw(addr, messages::I2C_M_RD, 1, &mut buffer as *mut u8);
+        let data = I2cReadWriteData::from_messages(&messages);
+        i2c_rdwr_ioctl(&handle, &data).map_err(I2cError::AddressError)?;
+
+        Ok(handle)
     }
 
     pub fn functionality(&self) -> &Functionality {
@@ -163,10 +172,12 @@ pub enum I2cError {
     WriteError(#[source] IoctlError),
     #[error("failed on i2c buffer execute")]
     BufferError(#[source] IoctlError),
+    #[error("i2c address unresponsive")]
+    AddressError(#[source] IoctlError),
+    #[error("address too long for supported address range")]
+    AddressRangeError,
     #[error(transparent)]
     IoctlError(#[from] IoctlError),
-    #[error("address too long for supported address range")]
-    AddressError,
 }
 
 fn i2c_rdwr_ioctl(handle: &I2c, data: &I2cReadWriteData) -> Result<(), IoctlError> {
@@ -272,16 +283,8 @@ fn test_bad_functionality() {
 fn test_bad_addr() {
     use std::error::Error;
 
-    let handle = I2c::open(0x00).unwrap();
-    let address = 0x72;
-    let data = [address, 2];
-    let result = handle
-        .i2c_buffer()
-        .add_write(0, &data)
-        .execute()
-        .unwrap_err();
-
-    assert_eq!(format!("{}", result), "failed on i2c buffer execute");
+    let result = I2c::open(0x00).unwrap_err();
+    assert_eq!(format!("{}", result), "i2c address unresponsive");
     assert_eq!(
         format!("{}", result.source().unwrap()),
         "Remote I/O error (os error 121)"
