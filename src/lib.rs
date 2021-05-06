@@ -68,8 +68,7 @@ impl I2c {
     }
 
     pub fn i2c_read(&self, register: u8, buffer: &mut [u8]) -> I2cResult<()> {
-        let messages =
-            I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, &mut buffer[..]);
+        let messages = I2cMessageBuffer::new().add_read_reg(self.addr, 0, &register, buffer);
         let data = I2cReadWriteData::from_messages(&messages);
         i2c_rdwr_ioctl(&self, &data).map_err(I2cError::ReadError)?;
         Ok(())
